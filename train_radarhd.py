@@ -10,9 +10,10 @@ import torch
 import torch.optim as optim
 
 import numpy as np
-from torchsummary import summary
+# from torchsummary import summary
 from PIL import Image
 from scipy.io import savemat
+from scipy.optimize import brentq
 
 from train_test_utils.dataloader import *
 from train_test_utils.model import *
@@ -64,7 +65,7 @@ def main():
 
     # Creating models
     gen = UNet1(params['history']+1,1).to(device)
-    summary(gen, (params['history']+1, 256, 64))
+    # summary(gen, (params['history']+1, 256, 64))
 
     train_log_interval = 100
     model_save_interval = 10
