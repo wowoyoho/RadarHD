@@ -45,7 +45,7 @@ class Dataset(torch.utils.data.Dataset):
 
                 x_local = []
                 for j in range(self.history, len(radar_files_time)):
-                    x_local.append(radar_files_time[j-self.history:j+1])
+                    x_local.append(radar_files_time[j-self.history:j+1]) # using long time radar data to output single lidar data
                 y_local = lidar_files_time[self.history:]
                 
                 self.labels.extend(y_local)

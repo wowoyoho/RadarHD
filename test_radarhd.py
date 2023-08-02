@@ -56,10 +56,10 @@ def val_dataloader(train_params):
                         RBINS=reqd_size[0], ABINS_RADAR=reqd_size[1], ABINS_LIDAR=reqd_size[2],
                         RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2], 
                         M=train_params['history'])
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=len(val_set), shuffle=False)
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=1, shuffle=False)
 
-    ordered_filename = val_loader.__filenames__()
-    print('# of points to test: ', len(val_loader))
+    ordered_filename = val_set.__filenames__()
+    print('# of points to test: ', len(val_set))
     return (val_loader, ordered_filename)
 
 def main():
@@ -73,10 +73,11 @@ def main():
         device = torch.device('cpu')
 
     def false_positive_rate(pred_masks, false_masks):
-        return ((pred_masks * false_masks).sum(axis=1).sum(axis=1)/false_masks.sum(axis=1).sum(axis=1)).mean()
+        return ((pred_masks * false_masks).sum(axis=-2).sum(axis=-1)/false_masks.sum(axis=-2).sum(axis=-1)).mean()
     
     def lamhat_threshold(cal_sgmd, cal_gt_masks, n, alpha, lam): 
-        return false_positive_rate(cal_sgmd>=lam, cal_gt_masks) - ((n+1)/n*alpha - 1/(n+1))
+        # 1-alpha is the desired false positive rate
+        return false_positive_rate(cal_sgmd>=lam, 1-cal_gt_masks) - ((n+1)/n*alpha - 1/(n+1))
 
     name_str = params['model_name'] + '_' + str(params['expt']) + '_' + params['dt']
     LOG_DIR = './logs/' + name_str + '/'
@@ -103,17 +104,32 @@ def main():
     # Testing
     gen.eval()
     
+    t0 = time.time()
+    
     # Split the softmax scores into calibration and validation sets (save the shuffling)
-    val_data, val_label = val_loader.__next__()
-    val_data, val_label = val_data.to(device), val_label.to(device)
-    # Run the conformal risk control procedure
-    with torch.no_grad():
-        val_pred_score = gen(val_data)
-        lamhat_threshold_partial = partial(lamhat_threshold, val_pred_score, val_label, len(val_loader), 0.1)
-        lamhat = brentq(lamhat_threshold_partial, 0, 1)
-        val_pred = val_pred_score >= lamhat
-        # Calculate empirical FNR
-        print(f"The empirical FNR is: {false_positive_rate(val_pred, val_label)} and the threshold value is: {lamhat}")
+    val_pred_score_list = []
+    val_pred_label_list = []
+    for val_i, (val_data, val_label) in enumerate(val_loader):
+        val_data, val_label = next(iter(val_loader))
+        val_data, val_label = val_data.to(device), val_label.to(device)
+        # Run the conformal risk control procedure
+        with torch.no_grad():
+            val_pred_score = gen(val_data)
+            val_pred_score_list.append(val_pred_score)
+            val_pred_label_list.append(val_label)
+        print(val_ordered_filename[val_i])
+        
+    val_pred_score_list = torch.concatenate(val_pred_score_list, dim=0)
+    val_pred_label_list = torch.concatenate(val_pred_label_list, dim=0)
+    
+    lamhat_threshold_partial = partial(lamhat_threshold, val_pred_score_list, val_pred_label_list, len(val_loader), 0.01)
+    lamhat = brentq(lamhat_threshold_partial, 0, 1)
+    val_pred = val_pred_score_list >= lamhat
+    # Calculate empirical FPR
+    print(f"The empirical FPR is: {false_positive_rate(val_pred, 1-val_pred_label_list)} and the threshold value is: {lamhat}")
+    
+    t1 = time.time()
+    print('Time taken for conformal risk control: ' ,t1 - t0)
         
     t0 = time.time()
     for test_i, (test_data, test_label) in enumerate(test_loader):
@@ -126,6 +142,7 @@ def main():
             # pred = (pred*255).astype(np.uint8)
             # for conformal risk control
             pred = pred >= lamhat
+            pred = (pred*255).astype(np.uint8)
             im1 = Image.fromarray(pred)
 
             im1_file_name = save_path + epoch_num + '_' + ordered_filename[test_i] + '_pred.png'
