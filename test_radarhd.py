@@ -62,6 +62,13 @@ def val_dataloader(train_params):
     print('# of points to test: ', len(val_set))
     return (val_loader, ordered_filename)
 
+def false_positive_rate(pred_masks, false_masks):
+        return ((pred_masks * false_masks).sum(axis=-2).sum(axis=-1)/false_masks.sum(axis=-2).sum(axis=-1)).mean()
+    
+def lamhat_threshold(cal_sgmd, cal_gt_masks, n, alpha, lam): 
+    # 1-alpha is the desired false positive rate
+    return false_positive_rate(cal_sgmd>=lam, 1-cal_gt_masks) - ((n+1)/n*alpha - 1/(n+1))
+
 def main():
     print(torch.__version__)
     torch.manual_seed(0)  
@@ -71,13 +78,6 @@ def main():
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
-
-    def false_positive_rate(pred_masks, false_masks):
-        return ((pred_masks * false_masks).sum(axis=-2).sum(axis=-1)/false_masks.sum(axis=-2).sum(axis=-1)).mean()
-    
-    def lamhat_threshold(cal_sgmd, cal_gt_masks, n, alpha, lam): 
-        # 1-alpha is the desired false positive rate
-        return false_positive_rate(cal_sgmd>=lam, 1-cal_gt_masks) - ((n+1)/n*alpha - 1/(n+1))
 
     name_str = params['model_name'] + '_' + str(params['expt']) + '_' + params['dt']
     LOG_DIR = './logs/' + name_str + '/'
@@ -159,4 +159,5 @@ def main():
     t1 = time.time()
     print('Time taken for inference: ' ,t1 - t0)
 
-main()
+if __file__ == "__main__": 
+    main()

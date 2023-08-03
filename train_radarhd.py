@@ -44,6 +44,22 @@ params = {
 def main():
     print(torch.__version__)
     torch.manual_seed(0)  
+    
+    # ****************************  DATALOADER ******************************
+
+    print('Loading data')
+    basepath = './dataset_' + str(params['data']) + '/'
+
+    orig_size = [256, 64, 512]
+    reqd_size = [256, 64, 512]  
+
+    training_set = Dataset(basepath, 'train',
+                            RBINS=reqd_size[0], ABINS_RADAR=reqd_size[1], ABINS_LIDAR=reqd_size[2],
+                            RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2], 
+                            M=params['history'])
+    train_loader = torch.utils.data.DataLoader(training_set, batch_size=params['batch_size'], shuffle=True)
+
+    # ***********************************************************************
 
     # Can be set to cuda/cpu. Make sure model and data are moved to cuda if cuda is used
     if params['gpu'] == 1:
@@ -131,20 +147,5 @@ def main():
     t1 = time.time()
     print(t1 - t0)
 
-# ****************************  DATALOADER ******************************
-
-print('Loading data')
-basepath = './dataset_' + str(params['data']) + '/'
-
-orig_size = [256, 64, 512]
-reqd_size = [256, 64, 512]  
-
-training_set = Dataset(basepath, 'train',
-                        RBINS=reqd_size[0], ABINS_RADAR=reqd_size[1], ABINS_LIDAR=reqd_size[2],
-                        RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2], 
-                        M=params['history'])
-train_loader = torch.utils.data.DataLoader(training_set, batch_size=params['batch_size'], shuffle=True)
-
-# ***********************************************************************
-
-main()
+if __file__ == "__main__":
+    main()
