@@ -159,5 +159,5 @@ def main():
     t1 = time.time()
     print('Time taken for inference: ' ,t1 - t0)
 
-if __file__ == "__main__": 
+if __name__ == "__main__": 
     main()
